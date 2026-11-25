@@ -17,8 +17,10 @@ object Installer {
      */
     fun apkCertSha256(apk: File): String {
         JarFile(apk).use { jar ->
-            val je = jar.entries().toList().first { it.name == "AndroidManifest.xml" }
-                ?: throw IllegalStateException("no manifest")
+            val entries = jar.entries().toList()
+            if (entries.none { it.name == "AndroidManifest.xml" })
+                throw IllegalStateException("no manifest in APK")
+            val je = entries.first { it.name == "AndroidManifest.xml" }
             jar.getInputStream(je).use { _ -> } // force verification of the entry
             val certs = je.certificates
                 ?: throw IllegalStateException("APK is not signed")

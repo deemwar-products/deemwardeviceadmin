@@ -78,10 +78,17 @@ object Repo {
                 versionCode = best.getLong("versionCode"),
                 versionName = best.optString("versionName", ""),
                 apkName = best.getString("apkName"),
-                apkSha256 = best.getString("sha256").lowercase(),
+                apkSha256 = normalizeHash(best),
             )
         }
         return out
+    }
+
+    /** index-v1 uses hash + hashType (older servers used sha256); accept both. */
+    private fun normalizeHash(v: JSONObject): String {
+        val type = v.optString("hashType", "sha256").lowercase()
+        check(type == "sha256") { "unsupported hashType $type" }
+        return v.optString("hash", v.optString("sha256")).lowercase()
     }
 
     fun downloadApk(entry: RepoEntry, dest: File) {
