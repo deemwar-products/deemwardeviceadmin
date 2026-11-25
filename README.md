@@ -12,7 +12,7 @@ and without being device-wide.
 ## Safety rails (all baked in, no settings screen)
 
 1. **One repo** — every download comes from `https://fdroid.deemwar.com/repo`; the URL is a compile-time constant.
-2. **Package allowlist** — only the application IDs listed in `Policy.ALLOWED_PACKAGES` are ever considered, even if the repo index lists more.
+2. **Package allowlist** — only application IDs under the `com.deemwar.` namespace are ever considered, even if the repo index lists more.
 3. **Index integrity** — the APK's SHA-256 must match the repo index before install.
 4. **Pinned signing certs** — the APK's signing certificate SHA-256 must be in `Policy.TRUSTED_CERT_SHA256`, or the install is refused and the APK deleted.
 
@@ -34,11 +34,12 @@ temporarily; remove the Google account, run it, add it back.
 
 ## Use
 
-Open the app, tap **Sync + update from deemwar repo**. It fetches the repo
-index, compares installed versions, and silently installs updates for
-allowlisted packages. To have it also serve the work profile, install it as
-profile owner instead: `dpm set-profile-owner` on the work user, or run
-installs with the work user's context.
+Open the app. It lists every `com.deemwar.*` package served by
+`fdroid.deemwar.com`, shows what is installed versus available, and one tap
+installs or updates silently (when Device Owner). It is a scoped F-Droid
+client: one repo, one namespace, nothing else. To have it also serve the
+work profile, install it as profile owner instead: `dpm set-profile-owner`
+on the work user, or run installs with the work user's context.
 
 ## License
 

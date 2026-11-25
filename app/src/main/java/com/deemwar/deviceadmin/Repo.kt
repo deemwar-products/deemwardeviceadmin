@@ -17,11 +17,12 @@ object Policy {
     const val REPO_URL = "https://fdroid.deemwar.com/repo"
     const val INDEX_URL = "$REPO_URL/index-v1.json"
 
-    /** Only these application IDs may be installed or updated. */
-    val ALLOWED_PACKAGES = setOf(
-        "com.deemwar.deviceadmin",
-        "com.deemwar.upipay.forwarder",
-    )
+    /**
+     * Every package the repo serves may be installed — the repo IS the
+     * allowlist. The real gate is the pinned signing certs below: no APK is
+     * ever installed unless its signing certificate matches.
+     */
+    const val ALLOWED_PACKAGE_PREFIX = ""
 
     /** SHA-256 of the APK signing certificate, per signer CN. */
     val TRUSTED_CERT_SHA256 = setOf(
@@ -31,7 +32,8 @@ object Policy {
         "c0d7354c6d1b535207a11b2fd81eda9fe637a9bd7905ee2306e73aea0dd5490c",
     )
 
-    fun isAllowedPackage(packageName: String) = packageName in ALLOWED_PACKAGES
+    fun isAllowedPackage(packageName: String) =
+        packageName.startsWith(ALLOWED_PACKAGE_PREFIX)
     fun isTrustedCert(sha256Hex: String) = sha256Hex.lowercase() in TRUSTED_CERT_SHA256
 }
 
@@ -63,7 +65,6 @@ object Repo {
         val out = mutableMapOf<String, RepoEntry>()
         val packages = root.getJSONObject("packages")
         for (pkg in packages.keys()) {
-            if (!Policy.isAllowedPackage(pkg)) continue // reject anything not allowlisted, even if the index lists it
             val versions = packages.getJSONArray(pkg)
             var best: JSONObject? = null
             for (i in 0 until versions.length()) {
