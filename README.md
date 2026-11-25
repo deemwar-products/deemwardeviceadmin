@@ -94,19 +94,33 @@ has exactly one user and no accounts.
    never let a third-party MDM provision one (they disable adb and block
    `set-device-owner`).
 
-Provisioning QR payload (JSON — render with any QR generator):
+Provisioning QR payload (JSON — render with any QR generator). Prefer
+SIGNATURE_CHECKSUM (API 23+): it survives APK version bumps, unlike
+PACKAGE_CHECKSUM which changes with every release. Required keys are
+COMPONENT_NAME + DOWNLOAD_LOCATION + one checksum; on Android 12+ the DPC
+must also handle GET_PROVISIONING_MODE and ADMIN_POLICY_COMPLIANCE, which
+this app does since v10:
 
 ```json
 {
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":
     "com.deemwar.deviceadmin/com.deemwar.deviceadmin.AdminReceiver",
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":
-    "https://fdroid.deemwar.com/repo/com.deemwar.deviceadmin_9.apk",
-  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM":
-    "<url-safe base64 sha256 of the APK: cat apk | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '='>",
+    "https://fdroid.deemwar.com/repo/com.deemwar.deviceadmin_10.apk",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":
+    "-Pb2BHGhkdRHVuSDpu_8K8fVzn1cgW182kPAZ52mVVA",
+  "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
   "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false
 }
 ```
+
+Checksum recipe (when the signing cert ever changes): from
+`apksigner verify --print-certs app.apk` take the cert SHA-256 hex, then
+`echo <hex> | xxd -r -p | base64 | tr '+/' '-_' | tr -d '='`.
+Gotchas: tap the same spot 6 times on the FIRST welcome screen before
+changing language/country (Motorola setup wizard); some carrier builds strip
+the QR reader — the adb fallback is the plan B; never sign into Google or
+enable Secure Vault before provisioning.
 
 Note: on Android 12+ a DPC must handle `ACTION_GET_PROVISIONING_MODE` and
 `ACTION_ADMIN_POLICY_COMPLIANCE` or QR provisioning fails — the first thing
