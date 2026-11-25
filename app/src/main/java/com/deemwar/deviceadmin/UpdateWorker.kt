@@ -45,17 +45,16 @@ class UpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker
 
     companion object {
         fun schedule(context: Context) {
-            val req = PeriodicWorkRequestBuilder<UpdateWorker>(24, TimeUnit.HOURS)
+            val req = PeriodicWorkRequestBuilder<UpdateWorker>(6, TimeUnit.HOURS)
                 .setConstraints(
                     Constraints.Builder()
-                        .setRequiresCharging(true)
                         .setRequiredNetworkType(androidx.work.NetworkType.UNMETERED)
                         .build()
                 )
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 "deemwar-repo-updates",
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 req,
             )
         }

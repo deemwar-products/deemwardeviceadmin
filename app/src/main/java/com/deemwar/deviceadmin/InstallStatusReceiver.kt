@@ -14,7 +14,9 @@ import android.os.Build
 class InstallStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, Int.MIN_VALUE)
-        val pkg = intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME) ?: "?"
+        val pkg = intent.getStringExtra(EXTRA_PKG)
+            ?: intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME) ?: "?"
+        val op = intent.getStringExtra(EXTRA_OP) ?: "install"
         val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             val confirm: Intent? = if (Build.VERSION.SDK_INT >= 33)
@@ -33,11 +35,13 @@ class InstallStatusReceiver : BroadcastReceiver() {
             }
             return
         }
-        InstallLog.post("$pkg: ${describeStatus(status)}" + (msg?.let { " ($it)" } ?: ""))
+        InstallLog.post("$pkg: ${if (op == "uninstall" && status == PackageInstaller.STATUS_SUCCESS) "uninstalled OK" else describeStatus(status)}" + (msg?.let { " ($it)" } ?: ""))
     }
 
     companion object {
         const val ACTION = "com.deemwar.deviceadmin.INSTALL_STATUS"
+        const val EXTRA_PKG = "com.deemwar.deviceadmin.PKG"
+        const val EXTRA_OP = "com.deemwar.deviceadmin.OP"
 
         fun describeStatus(status: Int): String = when (status) {
             PackageInstaller.STATUS_SUCCESS -> "installed OK"

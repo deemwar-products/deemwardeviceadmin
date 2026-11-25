@@ -30,6 +30,8 @@ object Policy {
         "d16030fd1dae9a090bb2ad4711f64d76bc8be780d624cf9f33d3e09b64c7fd28",
         // CN=Deemwar Device Admin  (this app, for self-updates)
         "c0d7354c6d1b535207a11b2fd81eda9fe637a9bd7905ee2306e73aea0dd5490c",
+        // CN=Deemwar Samples, O=Deemwar, C=IN  (hello / counter test apps)
+        "6bd08994e88c568bb8c7502d7d477746d36bb4fad4f123eedc12c59bda742ab1",
     )
 
     fun isAllowedPackage(packageName: String) =

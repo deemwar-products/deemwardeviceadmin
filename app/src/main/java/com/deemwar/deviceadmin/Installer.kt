@@ -62,6 +62,19 @@ object Installer {
         }
     } catch (e: PackageManager.NameNotFoundException) { null to null }
 
+    /** Uninstall via PackageInstaller; the system confirm dialog is shown by InstallStatusReceiver. */
+    fun uninstall(context: Context, packageName: String) {
+        val intent = Intent(InstallStatusReceiver.ACTION)
+            .setClass(context, InstallStatusReceiver::class.java)
+            .putExtra(InstallStatusReceiver.EXTRA_PKG, packageName)
+            .putExtra(InstallStatusReceiver.EXTRA_OP, "uninstall")
+        val sender = PendingIntent.getBroadcast(
+            context, packageName.hashCode(), intent,
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        ).intentSender
+        context.packageManager.packageInstaller.uninstall(packageName, sender)
+    }
+
     /**
      * Silent install (no user consent prompt) when this app is Device Owner;
      * otherwise falls back to a normal prompt. Rejects anything whose signing
@@ -108,6 +121,7 @@ object Installer {
             }
             val statusIntent = Intent(InstallStatusReceiver.ACTION)
                 .setClass(context, InstallStatusReceiver::class.java)
+                .putExtra(InstallStatusReceiver.EXTRA_PKG, entry.packageName)
             val sender: IntentSender = PendingIntent.getBroadcast(
                 context, sessionId, statusIntent,
                 PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
