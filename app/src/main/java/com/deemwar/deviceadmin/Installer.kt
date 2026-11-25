@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageInstaller
+import android.os.Build
 import java.io.File
 import java.security.MessageDigest
 import java.util.jar.JarFile
@@ -49,6 +50,15 @@ object Installer {
         val pm = context.packageManager
         val installer = pm.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        // Silent update path: we are (or become) the installer of record for the
+        // packages we ship, so updates do not need a user prompt (Android 12+).
+        if (Build.VERSION.SDK_INT >= 31) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        // Claim update ownership (Android 14+): no other installer can override our updates.
+        if (Build.VERSION.SDK_INT >= 34) {
+            params.setRequestUpdateOwnership(true)
+        }
         val sessionId = installer.createSession(params)
         val session = installer.openSession(sessionId)
         try {

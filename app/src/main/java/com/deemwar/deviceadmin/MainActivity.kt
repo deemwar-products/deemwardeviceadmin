@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
         else
             "Device owner: NO — promote via adb:\ndpm set-device-owner com.deemwar.deviceadmin/.AdminReceiver"
         Thread { loadRepo() }.start()
+        UpdateWorker.schedule(this)
     }
 
     private fun loadRepo() {
