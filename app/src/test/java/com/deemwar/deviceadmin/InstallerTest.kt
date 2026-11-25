@@ -1,5 +1,6 @@
 package com.deemwar.deviceadmin
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -21,6 +22,26 @@ class InstallerTest {
             z.closeEntry()
         }
         return f
+    }
+
+    private val me = "com.deemwar.deviceadmin"
+
+    @Test
+    fun `silent only when we are installer of record`() {
+        assertTrue(Installer.shouldRequestSilent(me, me, null, 33))
+        assertFalse(Installer.shouldRequestSilent(me, "org.fdroid.fdroid", null, 33))
+        assertFalse(Installer.shouldRequestSilent(me, null, null, 33)) // first install
+    }
+
+    @Test
+    fun `update owner overrides installer of record`() {
+        assertTrue(Installer.shouldRequestSilent(me, "com.android.shell", me, 34))
+        assertFalse(Installer.shouldRequestSilent(me, me, "org.fdroid.fdroid", 34))
+    }
+
+    @Test
+    fun `never silent before android 12`() {
+        assertFalse(Installer.shouldRequestSilent(me, me, null, 30))
     }
 
     @Test

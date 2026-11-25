@@ -39,6 +39,10 @@
         </activity>
 
         <receiver
+            android:name=".InstallStatusReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".AdminReceiver"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
             android:exported="true">

@@ -52,6 +52,19 @@ class MainActivity : AppCompatActivity() {
         UpdateWorker.schedule(this)
     }
 
+    override fun onResume() {
+        super.onResume()
+        InstallLog.listener = { m ->
+            status.post { status.text = m }
+            if (m.contains("installed OK")) Thread { loadRepo() }.start()
+        }
+    }
+
+    override fun onPause() {
+        InstallLog.listener = null
+        super.onPause()
+    }
+
     private fun loadRepo() {
         try {
             val index = Repo.fetchIndex()
@@ -115,8 +128,7 @@ class MainActivity : AppCompatActivity() {
             } finally {
                 apk.delete()
             }
-            status.post { status.text = "${entry.packageName}: install committed" }
-            loadRepo()
+            status.post { status.text = "${entry.packageName}: install committed, waiting for result…" }
         } catch (t: Throwable) {
             status.post { status.text = "${entry.packageName}: ERROR ${t.message}" }
         }

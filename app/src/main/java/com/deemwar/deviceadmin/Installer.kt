@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageInstaller
 import android.os.Build
+import android.content.pm.PackageManager
 import java.io.File
 import java.security.MessageDigest
 import java.util.jar.JarFile
@@ -33,6 +34,27 @@ object Installer {
     }
 
     /**
+     * Only ask for a prompt-free install when we are already the installer of
+     * record (or update owner) for the package. Asking for it otherwise is what
+     * left first installs / foreign-installed packages stuck.
+     */
+    fun shouldRequestSilent(ourPackage: String, installerOfRecord: String?, updateOwner: String?, sdk: Int): Boolean {
+        if (sdk < 31) return false
+        if (updateOwner != null) return updateOwner == ourPackage
+        return installerOfRecord == ourPackage
+    }
+
+    private fun installerInfo(pm: PackageManager, pkg: String): Pair<String?, String?> = try {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val info = pm.getInstallSourceInfo(pkg)
+            val owner = if (Build.VERSION.SDK_INT >= 34) info.updateOwnerPackageName else null
+            info.installingPackageName to owner
+        } else {
+            @Suppress("DEPRECATION") pm.getInstallerPackageName(pkg) to null
+        }
+    } catch (e: PackageManager.NameNotFoundException) { null to null }
+
+    /**
      * Silent install (no user consent prompt) when this app is Device Owner;
      * otherwise falls back to a normal prompt. Rejects anything whose signing
      * cert is not pinned in [Policy].
@@ -50,10 +72,14 @@ object Installer {
         val pm = context.packageManager
         val installer = pm.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        // Silent update path: we are (or become) the installer of record for the
-        // packages we ship, so updates do not need a user prompt (Android 12+).
+        val (recordInstaller, updateOwner) = installerInfo(pm, entry.packageName)
+        val silent = shouldRequestSilent(context.packageName, recordInstaller, updateOwner, Build.VERSION.SDK_INT)
+        log("${entry.packageName}: installer=${recordInstaller ?: "none"} owner=${updateOwner ?: "none"} -> ${if (silent) "silent" else "prompt"}")
         if (Build.VERSION.SDK_INT >= 31) {
-            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            params.setRequireUserAction(
+                if (silent) PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED
+                else PackageInstaller.SessionParams.USER_ACTION_REQUIRED
+            )
         }
         // Claim update ownership (Android 14+): no other installer can override our updates.
         if (Build.VERSION.SDK_INT >= 34) {
@@ -66,8 +92,8 @@ object Installer {
                 apk.inputStream().use { it.copyTo(out) }
                 session.fsync(out)
             }
-            val statusIntent = Intent("com.deemwar.deviceadmin.INSTALL_STATUS")
-                .setPackage(context.packageName)
+            val statusIntent = Intent(InstallStatusReceiver.ACTION)
+                .setClass(context, InstallStatusReceiver::class.java)
             val sender: IntentSender = PendingIntent.getBroadcast(
                 context, sessionId, statusIntent,
                 PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
