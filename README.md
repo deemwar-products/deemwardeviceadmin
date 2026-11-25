@@ -108,7 +108,7 @@ this app does since v10:
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":
     "https://fdroid.deemwar.com/repo/com.deemwar.deviceadmin_10.apk",
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":
-    "-Pb2BHGhkdRHVuSDpu_8K8fVzn1cgW182kPAZ52mVVA",
+    "wNc1TG0bU1IHoRsv2B7an-Y3qb15Be4jBuc66g3VSQw",
   "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
   "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false
 }
@@ -117,6 +117,9 @@ this app does since v10:
 Checksum recipe (when the signing cert ever changes): from
 `apksigner verify --print-certs app.apk` take the cert SHA-256 hex, then
 `echo <hex> | xxd -r -p | base64 | tr '+/' '-_' | tr -d '='`.
+IMPORTANT: SIGNATURE_CHECKSUM is the hash of the **signing certificate**,
+not of the APK file — do not put the APK file hash (PACKAGE_CHECKSUM) in
+that field, provisioning fails with a vague "couldn't set up device".
 Gotchas: tap the same spot 6 times on the FIRST welcome screen before
 changing language/country (Motorola setup wizard); some carrier builds strip
 the QR reader — the adb fallback is the plan B; never sign into Google or
