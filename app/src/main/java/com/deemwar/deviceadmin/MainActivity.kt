@@ -12,6 +12,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.text.method.ScrollingMovementMethod
 import android.widget.Toast
+import rikka.shizuku.Shizuku
 import android.os.Bundle
 import android.widget.Button
 import android.widget.LinearLayout
@@ -44,6 +45,10 @@ class MainActivity : AppCompatActivity() {
         val updateAll = Button(this).apply {
             text = "Update all"
             setOnClickListener { Thread { updateAll() }.start() }
+        }
+        val shizukuBtn = Button(this).apply {
+            text = "Enable silent install (Shizuku)"
+            setOnClickListener { onShizukuButton() }
         }
         Logger.init(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -82,6 +87,7 @@ class MainActivity : AppCompatActivity() {
                 addView(status)
                 addView(refresh)
                 addView(updateAll)
+                addView(shizukuBtn)
                 addView(list)
                 addView(TextView(this@MainActivity).apply { text = "Activity log"; setPadding(pad, pad, pad, 0); setTypeface(typeface, Typeface.BOLD) })
                 addView(logButtons)
@@ -102,6 +108,34 @@ class MainActivity : AppCompatActivity() {
         else
             "Device owner: NO — promote via adb:\ndpm set-device-owner com.deemwar.deviceadmin/.AdminReceiver"
         UpdateWorker.schedule(this)
+
+        try {
+            Shizuku.addRequestPermissionResultListener { _, result ->
+                val ok = result == android.content.pm.PackageManager.PERMISSION_GRANTED
+                Logger.log("shizuku permission " + if (ok) "GRANTED — silent install enabled" else "denied")
+                runOnUiThread { status.text = if (ok) "Shizuku ready — installs are now silent" else "Shizuku permission denied" }
+            }
+        } catch (t: Throwable) {}
+        refreshShizukuStatus()
+    }
+
+    private fun shizukuState(): String = when {
+        !ShizukuInstaller.binderAlive() -> "Shizuku not running"
+        ShizukuInstaller.hasPermission() -> "Shizuku ready — installs are silent"
+        else -> "Shizuku running — tap to grant permission"
+    }
+
+    private fun refreshShizukuStatus() { status.post { status.text = shizukuState() } }
+
+    private fun onShizukuButton() {
+        when {
+            !ShizukuInstaller.binderAlive() -> {
+                Logger.log("Shizuku not running. Install the Shizuku app and start it via Wireless debugging (Developer options), then return here.")
+                status.text = "Install Shizuku + start it via Wireless debugging, then tap again"
+            }
+            ShizukuInstaller.hasPermission() -> { status.text = "Shizuku already enabled — installs are silent" }
+            else -> { Logger.log("requesting Shizuku permission"); ShizukuInstaller.requestPermission() }
+        }
     }
 
     /** Auto-find: re-scan whenever any app is installed, updated or removed. */

@@ -98,6 +98,19 @@ object Installer {
         }
         log("cert OK (${entry.packageName}): ${current.joinToString()}")
 
+        // Preferred path on a policy-restricted phone: install as the ADB shell
+        // user through Shizuku, which is not gated by
+        // DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY. We pass our own package as
+        // the installer, so Deemwar becomes installer-of-record and owns updates.
+        if (ShizukuInstaller.hasPermission()) {
+            log("${entry.packageName}: installing via Shizuku (shell uid)")
+            if (ShizukuInstaller.install(apk, context.packageName, log)) {
+                InstallLog.post("${entry.packageName}: installed OK (via Shizuku)")
+                return
+            }
+            log("${entry.packageName}: Shizuku path failed, falling back to prompt")
+        }
+
         val installer = pm.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val (recordInstaller, updateOwner) = installerInfo(pm, entry.packageName)
