@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
+    private lateinit var shizukuBtn: Button
     private val pad by lazy { (resources.displayMetrics.density * 12).toInt() }
 
     private fun isDeviceOwner(): Boolean {
@@ -46,7 +47,7 @@ class MainActivity : AppCompatActivity() {
             text = "Install / update ALL apps"
             setOnClickListener { Thread { installAll() }.start() }
         }
-        val shizukuBtn = Button(this).apply {
+        shizukuBtn = Button(this).apply {
             text = "Enable silent install (Shizuku)"
             setOnClickListener { onShizukuButton() }
         }
@@ -125,17 +126,24 @@ class MainActivity : AppCompatActivity() {
         else -> "Shizuku running — tap to grant permission"
     }
 
-    private fun refreshShizukuStatus() { status.post { status.text = shizukuState() } }
+    private fun refreshShizukuStatus() {
+        val enabled = ShizukuInstaller.hasPermission()
+        runOnUiThread {
+            status.text = shizukuState()
+            if (::shizukuBtn.isInitialized)
+                shizukuBtn.text = if (enabled) "Silent install: ON (Shizuku)" else "Enable silent install (Shizuku)"
+        }
+    }
 
     private fun onShizukuButton() {
         when {
-            !ShizukuInstaller.binderAlive() -> {
-                Logger.log("Shizuku not running. Install the Shizuku app and start it via Wireless debugging (Developer options), then return here.")
-                status.text = "Install Shizuku + start it via Wireless debugging, then tap again"
-            }
-            ShizukuInstaller.hasPermission() -> { status.text = "Shizuku already enabled — installs are silent" }
+            !ShizukuInstaller.binderAlive() ->
+                Logger.log("Shizuku not running. Open the Shizuku app and Start it (Wireless debugging), then tap this again. Note: Shizuku stops on reboot and must be started again.")
+            ShizukuInstaller.hasPermission() ->
+                Logger.log("Shizuku already enabled — installs are silent")
             else -> { Logger.log("requesting Shizuku permission"); ShizukuInstaller.requestPermission() }
         }
+        refreshShizukuStatus()
     }
 
     /** Auto-find: re-scan whenever any app is installed, updated or removed. */
@@ -179,6 +187,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshShizukuStatus()
         Logger.listener = { line ->
             runOnUiThread {
                 logView.append("\n" + line)
