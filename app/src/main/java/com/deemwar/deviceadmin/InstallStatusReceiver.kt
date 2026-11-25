@@ -58,9 +58,3 @@ class InstallStatusReceiver : BroadcastReceiver() {
     }
 }
 
-/** Last install result, pushed to whoever is listening (MainActivity). */
-object InstallLog {
-    @Volatile var listener: ((String) -> Unit)? = null
-    @Volatile var last: String? = null
-    fun post(m: String) { last = m; listener?.invoke(m) }
-}

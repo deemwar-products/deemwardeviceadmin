@@ -18,10 +18,12 @@ import java.util.concurrent.TimeUnit
 class UpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val log = StringBuilder()
+        Logger.init(applicationContext)
+        Logger.log("worker: periodic update check starting")
         try {
             val index = Repo.fetchIndex()
             val pm = applicationContext.packageManager
+            var updated = 0
             for ((_, entry) in index) {
                 val installed = try {
                     pm.getPackageInfo(entry.packageName, 0).longVersionCode
@@ -29,16 +31,20 @@ class UpdateWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 if (installed == 0L || installed >= entry.versionCode) continue
                 val apk = File(applicationContext.cacheDir, entry.apkName)
                 try {
+                    Logger.log("worker: updating ${entry.packageName} v$installed -> v${entry.versionCode}")
                     Repo.downloadApk(entry, apk)
-                    Installer.install(applicationContext, entry, apk) { log.append(it).append('\n') }
+                    Installer.install(applicationContext, entry, apk) { Logger.log(it) }
+                    updated++
                 } catch (t: Throwable) {
-                    log.append("${entry.packageName}: ${t.message}\n")
+                    Logger.log("worker: ${entry.packageName} FAILED: ${t.message}")
                 } finally {
                     apk.delete()
                 }
             }
+            Logger.log("worker: done, $updated update(s) committed")
             return Result.success()
         } catch (t: Throwable) {
+            Logger.log("worker: run FAILED, will retry: ${t.message}")
             return Result.retry()
         }
     }

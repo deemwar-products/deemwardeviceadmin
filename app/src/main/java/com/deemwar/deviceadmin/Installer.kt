@@ -81,6 +81,7 @@ object Installer {
      * cert is not pinned in [Policy].
      */
     fun install(context: Context, entry: RepoEntry, apk: File, log: (String) -> Unit) {
+        Logger.init(context)
         val pm = context.packageManager
         val (apkPackage, certs) = apkSigners(pm, apk)
         if (apkPackage != entry.packageName) {

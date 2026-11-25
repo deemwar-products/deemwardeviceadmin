@@ -49,13 +49,24 @@ data class RepoEntry(
 
 object Repo {
 
+    @Volatile private var known: List<String> = emptyList()
+    fun lastKnownPackages(): List<String> = known
+
     fun fetchIndex(): Map<String, RepoEntry> {
+        Logger.log("refresh: GET ${Policy.INDEX_URL}")
         val conn = URL(Policy.INDEX_URL).openConnection() as HttpsURLConnection
         conn.connectTimeout = 15_000
         conn.readTimeout = 30_000
         try {
             val body = conn.inputStream.bufferedReader().readText()
-            return parseIndexV1(body)
+            val map = parseIndexV1(body)
+            known = map.keys.sorted()
+            Logger.log("refresh: index has ${map.size} apps: " +
+                map.values.joinToString(", ") { "${it.packageName}=v${it.versionCode}" })
+            return map
+        } catch (t: Throwable) {
+            Logger.log("refresh FAILED: ${t.message}")
+            throw t
         } finally {
             conn.disconnect()
         }
@@ -98,6 +109,7 @@ object Repo {
         val conn = URL(url).openConnection() as HttpsURLConnection
         conn.connectTimeout = 15_000
         conn.readTimeout = 120_000
+        Logger.log("download: ${entry.apkName} (${entry.packageName} v${entry.versionCode})")
         try {
             dest.outputStream().use { out -> conn.inputStream.copyTo(out) }
         } finally {
@@ -106,6 +118,10 @@ object Repo {
         // Verify the APK bytes match what the (HTTPS, pinned-host) index says.
         val got = MessageDigest.getInstance("SHA-256").digest(dest.readBytes())
             .joinToString("") { "%02x".format(it) }
-        check(got == entry.apkSha256) { "APK sha256 mismatch for ${entry.packageName}" }
+        if (got != entry.apkSha256) {
+            Logger.log("download FAILED: sha256 mismatch for ${entry.packageName} (got $got want ${entry.apkSha256})")
+            throw IllegalStateException("APK sha256 mismatch for ${entry.packageName}")
+        }
+        Logger.log("download OK: ${entry.apkName} sha256 $got (${dest.length()} bytes)")
     }
 }
