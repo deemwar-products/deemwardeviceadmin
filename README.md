@@ -44,3 +44,71 @@ on the work user, or run installs with the work user's context.
 ## License
 
 Apache-2.0
+
+---
+
+## The update path: who prompts, when
+
+Silent updates (no dialog at all) work when **this app is the installer of
+record** for the target package:
+
+- The **first** install of an app via this client (or the first update of an
+  app another installer — adb, F-Droid, Play — put there) shows the standard
+  **one confirm tap**. After that, this app owns updates for that package:
+  every later version lands **silently**, including via the daily WorkManager
+  job (charging + unmetered).
+- Self-updates of this app are handled by the F-Droid client (also unattended
+  on recent versions) — this app hides itself from its own list.
+
+Verify installer of record / update ownership on-device:
+
+```
+adb shell dumpsys package <pkg> | grep -i -E 'installerPackageName|updateOwner'
+```
+
+Should show `com.deemwar.deviceadmin` for every repo app once the first
+update-through-this-app has run. If an update still prompts, it is almost
+always one of: targetSdk too old for the device's Android version, or the
+package is still owned by a different installer (run the first update once
+through this app to take ownership).
+
+## Runbook: provisioning a dedicated phone as Device Owner
+
+For phones dedicated to deemwar apps (kiosk-style). Do this **before adding
+any account or profile**; Device Owner can only be granted while the device
+has exactly one user and no accounts.
+
+1. Factory reset. Skip the Google account. Do not enable Moto Secure Vault
+   (it creates user 12 and permanently blocks `set-device-owner`). Decline
+   work-profile/MDM provisioning.
+2. Preferred, no computer: on the setup-wizard welcome screen tap the same
+   spot 6 times → connect Wi-Fi → scan the provisioning QR (payload below).
+   The wizard downloads our APK from the repo and sets it as Device Owner.
+3. Fallback, adb: enable Developer options → USB debugging, verify
+   `adb shell pm list users` shows exactly one user and `dumpsys account`
+   shows none, then
+   `adb shell dpm set-device-owner com.deemwar.deviceadmin/.AdminReceiver`.
+4. Only after the owner is set: add the Google account, configure whatever
+   else. Owner status survives reboots, OS updates and repo updates (same
+   signing key). If a work profile is ever needed, our DPC must create it —
+   never let a third-party MDM provision one (they disable adb and block
+   `set-device-owner`).
+
+Provisioning QR payload (JSON — render with any QR generator):
+
+```json
+{
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":
+    "com.deemwar.deviceadmin/com.deemwar.deviceadmin.AdminReceiver",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":
+    "https://fdroid.deemwar.com/repo/com.deemwar.deviceadmin_9.apk",
+  "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM":
+    "<url-safe base64 sha256 of the APK: cat apk | openssl dgst -binary -sha256 | openssl base64 | tr '+/' '-_' | tr -d '='>",
+  "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": false
+}
+```
+
+Note: on Android 12+ a DPC must handle `ACTION_GET_PROVISIONING_MODE` and
+`ACTION_ADMIN_POLICY_COMPLIANCE` or QR provisioning fails — the first thing
+to check if the wizard rejects the QR. The APK URL pins a versionCode; bump
+it when publishing.

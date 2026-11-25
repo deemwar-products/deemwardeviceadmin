@@ -11,8 +11,8 @@ android {
         applicationId = "com.deemwar.deviceadmin"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "2.0"
+        versionCode = 9
+        versionName = "2.1"
     }
 
     signingConfigs {
