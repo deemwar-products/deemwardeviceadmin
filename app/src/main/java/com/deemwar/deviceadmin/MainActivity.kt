@@ -43,8 +43,8 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { Thread { loadRepo() }.start() }
         }
         val updateAll = Button(this).apply {
-            text = "Update all"
-            setOnClickListener { Thread { updateAll() }.start() }
+            text = "Install / update ALL apps"
+            setOnClickListener { Thread { installAll() }.start() }
         }
         val shizukuBtn = Button(this).apply {
             text = "Enable silent install (Shizuku)"
@@ -165,10 +165,16 @@ class MainActivity : AppCompatActivity() {
         packageManager.getPackageInfo(pkg, 0).longVersionCode
     } catch (e: Exception) { 0L }
 
-    private fun updateAll() {
-        val todo = lastEntries.filter { val v = installedVersion(it.packageName); v in 1 until it.versionCode }
-        if (todo.isEmpty()) { status.post { status.text = "Everything installed is up to date" }; return }
-        for (e in todo) install(e)
+    /** Install every repo app that is missing or out of date, in one go. */
+    private fun installAll() {
+        val todo = lastEntries.filter { installedVersion(it.packageName) < it.versionCode }
+        if (todo.isEmpty()) { Logger.log("install all: everything already up to date"); status.post { status.text = "All apps installed and up to date" }; return }
+        Logger.log("install all: " + todo.size + " app(s): " + todo.joinToString { it.packageName })
+        if (!ShizukuInstaller.hasPermission()) Logger.log("install all: Shizuku not enabled — each app may show a prompt")
+        var ok = 0
+        for (e in todo) { install(e); if (installedVersion(e.packageName) >= e.versionCode) ok++ }
+        Logger.log("install all: " + ok + "/" + todo.size + " installed")
+        status.post { status.text = "Install all: " + ok + "/" + todo.size + " done" }
     }
 
     override fun onResume() {
@@ -214,7 +220,7 @@ class MainActivity : AppCompatActivity() {
             val index = Repo.fetchIndex()
             val pm = packageManager
             val entries = index.values
-                .filter { it.packageName != packageName } // don't list ourselves; we ARE the installer
+                .filter { it.packageName != packageName && it.packageName != "moe.shizuku.privileged.api" }
                 .sortedBy { it.packageName }
             lastEntries = entries
             runOnUiThread {
