@@ -9,28 +9,36 @@ import android.os.Build
 import android.content.pm.PackageManager
 import java.io.File
 import java.security.MessageDigest
-import java.util.jar.JarFile
 
 object Installer {
 
+    fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
     /**
-     * Read the SHA-256 of the APK's signing certificate straight out of the
-     * file, before it is ever handed to the system installer.
+     * Every signer must be pinned, and there must be at least one. Pure, so it
+     * is unit-testable; the certs come from the platform verifier below.
      */
-    fun apkCertSha256(apk: File): String {
-        JarFile(apk).use { jar ->
-            val entries = jar.entries().toList()
-            if (entries.none { it.name == "AndroidManifest.xml" })
-                throw IllegalStateException("no manifest in APK")
-            val je = entries.first { it.name == "AndroidManifest.xml" }
-            jar.getInputStream(je).use { _ -> } // force verification of the entry
-            val certs = je.certificates
-                ?: throw IllegalStateException("APK is not signed")
-            val main = certs.maxByOrNull { it.publicKey.encoded.size }
-                ?: throw IllegalStateException("no signer")
-            return MessageDigest.getInstance("SHA-256").digest(main.encoded)
-                .joinToString("") { "%02x".format(it) }
-        }
+    fun allSignersTrusted(certSha256s: List<String>): Boolean =
+        certSha256s.isNotEmpty() && certSha256s.all { Policy.isTrustedCert(it) }
+
+    /**
+     * Signing-cert SHA-256s of an APK file, read by the platform's own parser,
+     * which verifies v1, v2 and v3 signatures. (The old JarFile reader only saw
+     * v1 signatures, so v2-only APKs were rejected as "not signed".)
+     */
+    fun apkSigners(pm: PackageManager, apk: File): Pair<String?, List<String>> {
+        val info = if (Build.VERSION.SDK_INT >= 28)
+            pm.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNING_CERTIFICATES)
+        else @Suppress("DEPRECATION") pm.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)
+        info ?: throw IllegalStateException("APK could not be parsed")
+        val sigs = if (Build.VERSION.SDK_INT >= 28) {
+            val si = info.signingInfo ?: throw IllegalStateException("APK is not signed")
+            if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory
+        } else @Suppress("DEPRECATION") info.signatures
+        val list = sigs?.map { sha256Hex(it.toByteArray()) } ?: emptyList()
+        if (list.isEmpty()) throw IllegalStateException("APK is not signed")
+        return info.packageName to list
     }
 
     /**
@@ -60,16 +68,22 @@ object Installer {
      * cert is not pinned in [Policy].
      */
     fun install(context: Context, entry: RepoEntry, apk: File, log: (String) -> Unit) {
-        val cert = apkCertSha256(apk)
-        if (!Policy.isTrustedCert(cert)) {
+        val pm = context.packageManager
+        val (apkPackage, certs) = apkSigners(pm, apk)
+        if (apkPackage != entry.packageName) {
+            apk.delete()
+            throw SecurityException("BLOCKED: APK is $apkPackage, index says ${entry.packageName}")
+        }
+        // signingCertificateHistory lists rotated-from certs too; the current one is last.
+        val current = if (certs.size > 1 && Build.VERSION.SDK_INT >= 28) listOf(certs.last()) else certs
+        if (!allSignersTrusted(current)) {
             apk.delete()
             throw SecurityException(
-                "BLOCKED ${entry.packageName}: signing cert $cert is not a pinned deemwar cert"
+                "BLOCKED ${entry.packageName}: signing cert ${current.joinToString()} is not a pinned deemwar cert"
             )
         }
-        log("cert OK (${entry.packageName}): $cert")
+        log("cert OK (${entry.packageName}): ${current.joinToString()}")
 
-        val pm = context.packageManager
         val installer = pm.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val (recordInstaller, updateOwner) = installerInfo(pm, entry.packageName)

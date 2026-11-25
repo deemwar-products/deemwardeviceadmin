@@ -45,25 +45,17 @@ class InstallerTest {
     }
 
     @Test
-    fun `unsigned apk is rejected before install`() {
-        try {
-            Installer.apkCertSha256(unsignedApk())
-            throw AssertionError("expected unsigned APK to be rejected")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("not signed"))
-        }
+    fun `no signers is rejected`() {
+        assertFalse(Installer.allSignersTrusted(emptyList()))
     }
 
     @Test
-    fun `missing manifest is rejected`() {
-        val f = tmp.newFile("empty.apk")
-        ZipOutputStream(f.outputStream()).use { z -> z.putNextEntry(ZipEntry("other.txt")).let { z.write(ByteArray(1)); z.closeEntry() } }
-        try {
-            Installer.apkCertSha256(f)
-            throw AssertionError("expected rejection")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("no manifest") || e.message!!.contains("not signed"))
-        }
+    fun `pinned signer is accepted, unknown or mixed is rejected`() {
+        val fw = "d16030fd1dae9a090bb2ad4711f64d76bc8be780d624cf9f33d3e09b64c7fd28"
+        assertTrue(Installer.allSignersTrusted(listOf(fw)))
+        assertTrue(Installer.allSignersTrusted(listOf(fw.uppercase())))
+        assertFalse(Installer.allSignersTrusted(listOf("ab".repeat(32))))
+        assertFalse(Installer.allSignersTrusted(listOf(fw, "ab".repeat(32))))
     }
 
     @Test
